@@ -2,45 +2,15 @@
 
 ## 문서 목적
 
-이 문서는 GamePedia의 `dev`, `staging`, `production` 환경 분리 방식과 배포 승격 흐름을 정리한다. 클라이언트와 서버, 데이터 저장소가 환경별로 어떻게 대응되는지 설명한다.
+이 문서는 GamePedia의 `dev`, `staging`, `production` 환경 분리 구조와 환경 변수 관리 전략, 보안 전략을 설명한다.
 
-## 프로젝트 개요
+## 환경 분리 구조
 
-GamePedia는 하나의 코드베이스가 아니라 여러 애플리케이션과 서비스가 협력하는 구조이므로, 환경 분리가 배포 안정성에 직접 영향을 준다.
-
-- `dev`: 개발자 검증과 빠른 반복
-- `staging`: 릴리스 직전 통합 검증
-- `production`: 실제 사용자 서비스
-
-## 기술 스택 정리
-
-| 영역 | 구성 요소 | 목적 |
+| 환경 | 목적 | 설명 |
 | --- | --- | --- |
-| Client | iOS build configuration | 환경별 API 대상 분리 |
-| Server | Core/Auth/Translation instances | 환경별 독립 서비스 |
-| Data | Database, Redis | 환경별 데이터 격리 |
-| Quality | Winston logs, monitoring hooks | 환경별 품질 확인 |
-
-## 디렉터리 구조 설명
-
-```text
-GamePedia/
-├── apps/ios
-├── servers/core
-├── servers/auth
-├── servers/translation
-└── docs/05-infra
-```
-
-문서 관점에서는 각 코드베이스가 환경별 설정을 가진다고 이해하면 된다.
-
-| 경로 | 환경 관점 설명 |
-| --- | --- |
-| `apps/ios` | dev/staging/prod 빌드 설정 또는 구성 분기 |
-| `servers/core` | 환경별 배포 인스턴스 |
-| `servers/auth` | 환경별 인증 인스턴스 |
-| `servers/translation` | 환경별 번역 및 캐시 인스턴스 |
-| `docs/05-infra` | 환경 구조와 승격 정책 문서 |
+| dev | 개발 및 로컬 검증 | 빠른 기능 확인과 초기 통합 테스트 |
+| staging | 릴리스 전 검증 | production과 유사한 환경에서 통합 점검 |
+| production | 실제 운영 | 최종 사용자 대상 서비스 제공 |
 
 ## 환경 구조 다이어그램
 
@@ -48,114 +18,159 @@ GamePedia/
 flowchart LR
     subgraph Dev[dev]
         DevApp[iOS Dev Build]
-        DevAuth[Auth]
-        DevCore[Core]
-        DevTrans[Translation]
-        DevDB[(DB)]
+        DevCore[Core Server]
+        DevTranslation[Translation Server]
+        DevPG[(PostgreSQL)]
         DevRedis[(Redis)]
-        DevApp --> DevAuth
         DevApp --> DevCore
-        DevCore --> DevTrans
-        DevAuth --> DevDB
-        DevCore --> DevDB
-        DevTrans --> DevRedis
+        DevCore --> DevTranslation
+        DevCore --> DevPG
+        DevTranslation --> DevRedis
     end
 
     subgraph Staging[staging]
         StageApp[iOS Staging Build]
-        StageAuth[Auth]
-        StageCore[Core]
-        StageTrans[Translation]
-        StageDB[(DB)]
+        StageCore[Core Server]
+        StageTranslation[Translation Server]
+        StagePG[(PostgreSQL)]
         StageRedis[(Redis)]
-        StageApp --> StageAuth
         StageApp --> StageCore
-        StageCore --> StageTrans
-        StageAuth --> StageDB
-        StageCore --> StageDB
-        StageTrans --> StageRedis
+        StageCore --> StageTranslation
+        StageCore --> StagePG
+        StageTranslation --> StageRedis
     end
 
-    subgraph Prod[production]
+    subgraph Production[production]
         ProdApp[iOS Production Build]
-        ProdAuth[Auth]
-        ProdCore[Core]
-        ProdTrans[Translation]
-        ProdDB[(DB)]
+        ProdCore[Core Server]
+        ProdTranslation[Translation Server]
+        ProdPG[(PostgreSQL)]
         ProdRedis[(Redis)]
-        ProdApp --> ProdAuth
         ProdApp --> ProdCore
-        ProdCore --> ProdTrans
-        ProdAuth --> ProdDB
-        ProdCore --> ProdDB
-        ProdTrans --> ProdRedis
+        ProdCore --> ProdTranslation
+        ProdCore --> ProdPG
+        ProdTranslation --> ProdRedis
     end
-
-    Dev --> Staging
-    Staging --> Prod
 ```
 
-## 환경 승격 흐름
+## 프로젝트 구조 설명
 
-```mermaid
-flowchart LR
-    Code[Code / Config Change] --> DevCheck[dev 검증]
-    DevCheck --> StageDeploy[staging 배포]
-    StageDeploy --> QA[통합 QA]
-    QA --> ProdApprove[production 승인]
-    ProdApprove --> ProdDeploy[production 배포]
+```text
+GamePedia/
+├── apps/ios
+├── servers/core
+├── servers/translation
+└── docs/05-infra
 ```
 
-## 환경별 역할 정리
+| 경로 | 설명 |
+| --- | --- |
+| `apps/ios` | 환경별 빌드 설정과 API 엔드포인트 분기 |
+| `servers/core` | 환경별 Core Server 배포 대상 |
+| `servers/translation` | 환경별 Translation Server 배포 대상 |
+| `docs/05-infra` | 환경 구조와 보안 정책 문서 |
 
-| 환경 | 주요 사용 주체 | 목적 | 주의점 |
-| --- | --- | --- | --- |
-| dev | 개발자 | 빠른 기능 확인 | 불안정한 기능 허용 가능 |
-| staging | QA, 리뷰어, 팀 | 릴리스 전 통합 확인 | production과 최대한 유사해야 함 |
-| production | 실제 사용자 | 안정적인 서비스 | 변경 승인과 모니터링 필수 |
+## 환경 변수 관리 전략
+
+### 서버 환경 변수
+
+서버는 `.env` 파일 또는 배포 환경의 Secret Manager를 통해 설정값을 관리한다.
+
+| 항목 | 예시 |
+| --- | --- |
+| DB 연결 정보 | `DATABASE_URL` |
+| JWT 설정 | `JWT_SECRET`, `JWT_EXPIRES_IN` |
+| Redis 설정 | `REDIS_URL` |
+| 외부 API 키 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `PAPAGO_CLIENT_ID`, `PAPAGO_CLIENT_SECRET` |
+
+### iOS 환경 변수
+
+iOS는 `Secrets.xcconfig`와 환경별 `.xcconfig`를 활용해 민감한 설정을 분리한다.
+
+| 파일 | 역할 |
+| --- | --- |
+| `Secrets.xcconfig` | API Base URL, 비공개 키 참조값 등 민감 설정 |
+| `Debug.xcconfig` | dev 환경 설정 |
+| `Staging.xcconfig` | staging 환경 설정 |
+| `Release.xcconfig` | production 환경 설정 |
+
+## 보안 전략 설명
+
+### 서버 보안 전략
+
+- `.env` 파일은 저장소에 직접 커밋하지 않는다.
+- 운영 환경에서는 Secret Manager 또는 배포 플랫폼의 보안 변수를 사용한다.
+- JWT Secret은 환경마다 분리한다.
+- Papago, IGDB 등 외부 API 키는 환경별로 분리 관리한다.
+
+### iOS 보안 전략
+
+- 민감한 값은 코드에 하드코딩하지 않는다.
+- `Secrets.xcconfig`를 통해 빌드 시 주입한다.
+- 액세스 토큰과 리프레시 토큰은 Keychain에 저장한다.
+
+### 환경 분리 전략
+
+- `dev`, `staging`, `production`은 서로 다른 DB와 Redis를 사용한다.
+- staging은 production과 최대한 유사하게 유지한다.
+- production 접근 권한은 최소 인원으로 제한한다.
+
+## 데이터 흐름 관점의 환경 설명
+
+| 환경 | iOS 대상 서버 | 저장소 |
+| --- | --- | --- |
+| dev | dev Core / dev Translation | dev PostgreSQL / dev Redis |
+| staging | staging Core / staging Translation | staging PostgreSQL / staging Redis |
+| production | production Core / production Translation | production PostgreSQL / production Redis |
 
 ## 레이어 구조 설명
 
-| 레이어 | 환경별 의미 |
+| 레이어 | 역할 |
 | --- | --- |
-| Client Layer | 각 환경에 대응하는 iOS 빌드 구성 |
-| Service Layer | Core/Auth/Translation의 환경별 인스턴스 |
-| Data Layer | DB와 Redis의 환경별 분리 |
-| Delivery Layer | CI/CD, 승인, 승격 정책 |
-| Quality Layer | 로그, 모니터링, 배포 후 검증 |
+| Client Config Layer | iOS 빌드 설정과 API Base URL 관리 |
+| Server Config Layer | Core / Translation 환경 변수 관리 |
+| Secret Layer | JWT, DB, Redis, 외부 API 키 보관 |
+| Runtime Layer | dev / staging / production 서버 인스턴스 |
+| Storage Layer | 환경별 PostgreSQL, Redis 분리 |
 
 ## 책임 분리 설명
 
-| 요소 | 책임 | 분리 이유 |
-| --- | --- | --- |
-| dev | 개발 속도와 실험 | 초기 검증 실패를 production과 분리하기 위해 |
-| staging | 릴리스 전 재현 환경 | production 유사 검증을 위해 |
-| production | 실제 서비스 제공 | 안정성과 변경 통제를 위해 |
-| 환경별 DB | 데이터 격리 | 테스트 데이터와 운영 데이터 충돌 방지 |
-| 환경별 Redis | 캐시 격리 | 환경 간 오염 방지 |
+| 요소 | 책임 |
+| --- | --- |
+| dev | 빠른 개발과 실험 |
+| staging | release 후보 검증 |
+| production | 안정적인 사용자 서비스 |
+| `.env` | 서버 설정 관리 |
+| `Secrets.xcconfig` | iOS 빌드 시 민감 설정 주입 |
 
 ## 확장성 고려 사항
 
-- 환경별 인프라를 분리하면 장애 전파 범위를 줄일 수 있다.
-- staging을 production 유사 구조로 유지하면 배포 실패 확률을 줄일 수 있다.
-- 서비스별로 독립 배포가 가능하면 Core/Auth/Translation의 변경을 부분적으로 승격할 수 있다.
-- 환경별 로그와 지표를 분리하면 문제 분석 속도가 빨라진다.
+- 환경별로 Core와 Translation을 분리 배포하면 부분 롤아웃이 쉬워진다.
+- Secret 관리 체계를 정리하면 인프라가 커져도 운영 복잡도를 낮출 수 있다.
+- staging의 production 유사도를 높이면 릴리스 실패 확률을 줄일 수 있다.
+- 환경별 PostgreSQL/Redis 분리는 장애 전파 범위를 줄이는 기본 조건이다.
 
 ## Pencil / Figma / FigJam용 다이어그램 구조
 
-### 배치 방식
+### 프레임 구성
 
-- 가로 3열로 `dev`, `staging`, `production`을 나란히 배치한다.
-- 각 열 안에는 동일한 구조로 `iOS`, `Auth`, `Core`, `Translation`, `DB`, `Redis`를 반복한다.
+1. dev
+2. staging
+3. production
+4. Secret / Config 관리 영역
 
-### 화살표 규칙
+### 포함할 박스
 
-- 각 열 내부는 서비스 통신 관계를 그린다.
-- 열과 열 사이에는 승격 흐름만 그린다.
-- 직접적인 역방향 화살표는 만들지 않는다.
+- iOS Build
+- Core Server
+- Translation Server
+- PostgreSQL
+- Redis
+- `.env`
+- `Secrets.xcconfig`
 
 ### 시각적 강조
 
-- production은 가장 진한 테두리로 표시한다.
-- staging은 production과 같은 구조를 유지해 유사성을 강조한다.
-- dev는 빠른 실험 영역으로 라벨을 명확히 둔다.
+- 세 환경의 구조는 동일하게 반복해 비교 가능성을 높인다.
+- `Secrets.xcconfig`와 `.env`는 각 환경과 연결하되 별도 보안 영역으로 배치한다.
+- production 프레임은 가장 강한 강조 색을 사용한다.

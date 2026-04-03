@@ -1,137 +1,152 @@
-# GamePedia UI 구조 설계
+# GamePedia UI 구조
 
 ## 문서 목적
 
-이 문서는 GamePedia iOS 앱의 화면 구조, 화면 간 이동, UI 계층, 디자인 문서화 기준을 설명한다. Pencil, Figma, FigJam에서 바로 설계 보드로 옮길 수 있도록 화면 그룹과 연결 규칙도 함께 제공한다.
+이 문서는 GamePedia iOS 앱의 주요 화면 구조와 UI 계층 구조, 디자인 시스템 방향을 정리한다. Home, Search, Game Detail, Review, Profile 화면이 어떤 관계를 가지는지 한눈에 파악할 수 있도록 구성한다.
 
-## 프로젝트 개요
+## UI 구조 개요
 
-UI 관점에서 GamePedia는 다음 사용자 흐름을 중심으로 설계된다.
+GamePedia의 주요 사용자 흐름은 다음 화면을 중심으로 구성된다.
 
-- 앱 진입
-- 로그인 또는 비로그인 탐색
-- 게임 검색 및 목록 탐색
-- 게임 상세 화면 진입
-- 리뷰 작성/수정
-- 프로필 및 사용자 정보 확인
+- Home
+- Search
+- Game Detail
+- Review
+- Profile
 
-## 기술 스택 정리
+## 주요 화면 구조
 
-| 영역 | 기술 | 목적 |
+| 화면 | 목적 | 주요 기능 |
 | --- | --- | --- |
-| UI 구현 | UIKit | 화면 구성과 상호작용 처리 |
-| 상태 흐름 | Combine, MVI | UI 상태 전달과 비동기 바인딩 |
-| 화면 이동 | Coordinator | 화면 전환 책임 분리 |
-| 설계 도구 | Pencil, Figma, FigJam | 와이어프레임, 시각 설계, 아키텍처 보드 |
+| Home | 앱 진입 후 기본 게임 탐색 시작점 | 추천 게임, 인기 게임, 최근 탐색 진입 |
+| Search | 원하는 게임 검색 | 키워드 검색, 결과 목록, 필터 |
+| Game Detail | 게임 상세 정보 확인 | 게임 정보, 설명, 번역 텍스트, 리뷰 진입 |
+| Review | 리뷰 확인 및 작성/수정/삭제 | 리뷰 목록, 작성 폼, 수정, 삭제 |
+| Profile | 사용자 정보와 개인화 영역 | 내 리뷰, 찜 목록, 계정 정보 |
 
-## 디렉터리 구조 설명
+## 화면 흐름 다이어그램
 
-UI 설계는 실제 코드 디렉터리와 1:1 대응이 아니라, 아래의 논리 구조 기준으로 읽는다.
-
-```text
-GamePedia/
-├── apps/ios
-└── docs/02-design
+```mermaid
+flowchart LR
+    Home[Home] --> Search[Search]
+    Home --> Detail[Game Detail]
+    Search --> Detail
+    Detail --> Review[Review]
+    Home --> Profile[Profile]
+    Profile --> Review
 ```
 
-| 경로 | 설명 |
-| --- | --- |
-| `apps/ios` | 실제 UI 구현이 존재하는 앱 영역 |
-| `docs/02-design` | UI 구조, 보드 설계, 디자인 설명 문서 |
+## UI 계층 구조 설명
 
-## UI 화면 그룹
+GamePedia UI는 다음 계층을 기준으로 설계한다.
 
-| 그룹 | 포함 화면 | 목적 |
+| 계층 | 구성 요소 | 역할 |
 | --- | --- | --- |
-| App Entry | Splash, Launch, Initial Routing | 로그인 상태와 초기 진입 분기 |
-| Auth | Login, OAuth Callback, Session Restore | 인증 시작 및 세션 복원 |
-| Discovery | Home, Search, Game List | 게임 탐색 |
-| Detail | Game Detail, Review List | 게임/리뷰 정보 조회 |
-| Review | Write Review, Edit Review | 사용자 입력 중심 화면 |
-| Profile | My Page, Settings, Account | 사용자 정보와 설정 |
+| Screen Layer | ViewController, View | 화면 구성, 사용자 이벤트 수집 |
+| State Layer | ViewModel, State, Intent, Reducer | 화면 상태 생성과 갱신 |
+| Flow Layer | Coordinator | 화면 이동과 진입 흐름 제어 |
+| Domain Hook Layer | UseCase | 기능 실행 요청 |
+| Data Hook Layer | Repository | 서버 및 캐시 접근 연결 |
+
+## 화면별 UI 책임
+
+| 화면 | UI 책임 | 서버 연동 포인트 |
+| --- | --- | --- |
+| Home | 메인 피드 렌더링 | Core Server Game Module |
+| Search | 검색 입력과 결과 표시 | Core Server Game Module |
+| Game Detail | 상세 정보와 번역 콘텐츠 표시 | Core Server + Translation Server 간접 사용 |
+| Review | 리뷰 목록과 편집 폼 | Core Server Review Module |
+| Profile | 사용자 정보와 찜 목록 표시 | Core Server Auth/Favorite Module |
+
+## 디자인 시스템 설명
+
+GamePedia의 디자인 시스템은 다음 원칙을 따른다.
+
+### 공통 컴포넌트
+
+| 컴포넌트 | 설명 |
+| --- | --- |
+| Navigation Bar | 화면 제목과 뒤로가기, 주요 액션 제공 |
+| Game Card | 게임 목록과 추천 리스트에서 공통 사용 |
+| Search Bar | 검색 입력과 결과 진입 공통 사용 |
+| Review Card | 리뷰 목록과 프로필 화면에서 재사용 |
+| Empty / Loading / Error View | 상태별 공통 피드백 UI |
+| Favorite Button | 찜 추가/삭제 액션 공통 UI |
+
+### 상태 표현 원칙
+
+- 로딩 상태는 공통 Loading UI로 통일한다.
+- 빈 결과 상태는 Empty View로 통일한다.
+- 오류 상태는 재시도 액션이 있는 Error View로 통일한다.
+- 인증이 필요한 화면 진입은 Coordinator에서 분기한다.
 
 ## UI 데이터 흐름 다이어그램
 
 ```mermaid
-flowchart LR
-    User[User] --> View[UIKit View / ViewController]
-    View --> Action[Intent / Action]
-    Action --> Store[ViewModel or Store]
-    Store --> State[View State]
+flowchart TD
+    View[View] --> Intent[Intent]
+    Intent --> ViewModel[ViewModel]
+    ViewModel --> Reducer[Reducer]
+    Reducer --> State[State]
     State --> View
 ```
 
-UI 설계 문서에서는 화면 자체보다도 "사용자 입력이 어떤 상태 변경으로 이어지는지"가 중요하다. 따라서 화면 박스와 상태 박스를 함께 배치하는 것이 좋다.
+## 디렉터리 구조 설명
 
-## Coordinator 기반 화면 흐름
-
-```mermaid
-flowchart TD
-    AppCoordinator[AppCoordinator] --> LaunchFlow[Launch Flow]
-    AppCoordinator --> AuthCoordinator[AuthCoordinator]
-    AppCoordinator --> MainCoordinator[MainCoordinator]
-
-    MainCoordinator --> DiscoveryFlow[Discovery Flow]
-    MainCoordinator --> DetailFlow[Game Detail Flow]
-    MainCoordinator --> ReviewFlow[Review Flow]
-    MainCoordinator --> ProfileFlow[Profile Flow]
+```text
+apps/ios
+├── Features
+│   ├── Home
+│   ├── Search
+│   ├── GameDetail
+│   ├── Review
+│   └── Profile
+├── Coordinators
+└── Shared
 ```
 
-Coordinator는 "무엇을 보여줄지"를 결정하지만 "무엇을 계산할지"는 결정하지 않는다. 이 점이 UI 구조에서 가장 중요한 분리 기준이다.
-
-## 레이어 구조 설명
-
-| 레이어 | 책임 | 예시 |
-| --- | --- | --- |
-| Screen Layer | 화면 배치, 이벤트 수집, 렌더링 | ViewController, View |
-| Navigation Layer | 화면 전환, 진입 분기 | AppCoordinator, FeatureCoordinator |
-| State Layer | 화면 상태 생성과 갱신 | ViewModel, Store, State |
-| Domain Hook Layer | 기능 실행 요청 | UseCase |
-| Design Reference Layer | 화면 명세와 보드 설계 | Pencil/Figma/FigJam |
+| 영역 | 설명 |
+| --- | --- |
+| `Features/*` | 화면별 UI, ViewModel, State 구성 |
+| `Coordinators` | 화면 흐름과 라우팅 |
+| `Shared` | 공통 컴포넌트와 디자인 시스템 자산 |
 
 ## 책임 분리 설명
 
-| 구성 요소 | 담당 책임 | 담당하지 않는 것 |
+| 구성 요소 | 책임 | 제외 책임 |
 | --- | --- | --- |
-| View / ViewController | 사용자 입력 수집, 상태 렌더링 | 비즈니스 로직, 네트워크 규칙 |
-| Coordinator | 화면 이동, 진입 조건 분기 | 화면 상태 계산 |
-| ViewModel / Store | 상태 생성, Action 처리 | 직접적인 화면 푸시/프레젠트 |
-| UseCase | 기능 실행, 도메인 흐름 연결 | 구체적인 UI 배치 |
-| Design Docs | 화면 구조 설명, 컴포넌트 관계 시각화 | 런타임 상태 저장 |
+| View | 사용자 입력과 렌더링 | 비즈니스 로직 |
+| ViewModel | 상태 조립, 이벤트 처리 | 직접적인 화면 푸시 |
+| Reducer | 상태 변경 규칙 | 네트워크 접근 |
+| Coordinator | 화면 전환과 진입 분기 | 상태 계산 |
+| Shared UI | 공통 컴포넌트 재사용 | 기능별 비즈니스 규칙 |
 
-## UI 확장성 고려 사항
+## 확장성 고려 사항
 
-- 화면이 늘어나도 Coordinator 단위로 플로우를 분리하면 네비게이션 변경 범위를 줄일 수 있다.
-- MVI 상태 구조를 유지하면 로딩/에러/빈 상태를 일관되게 확장할 수 있다.
-- 공통 UI 컴포넌트와 화면 그룹을 분리해 디자인 변경 시 영향 범위를 제어할 수 있다.
-- FigJam/Pencil 보드는 개요용, Figma는 상세 화면용으로 역할을 분리하면 문서 과밀화를 막을 수 있다.
+- 화면이 늘어나더라도 Feature 단위 분리로 UI 복잡도를 제어할 수 있다.
+- 공통 컴포넌트를 `Shared`로 유지하면 일관된 디자인 시스템 운영이 가능하다.
+- 화면별 State와 Intent를 분리하면 기능 확장 시 회귀 범위를 줄일 수 있다.
+- Coordinator 중심 네비게이션 구조는 로그인 필요 흐름이나 모달 분기를 안정적으로 확장할 수 있다.
 
 ## Pencil / Figma / FigJam용 보드 구조
 
-### 프레임 구분
+### 프레임 구성
 
-1. App Entry
-2. Auth Flow
-3. Discovery Flow
-4. Game Detail / Review Flow
-5. Profile / Settings
-6. Shared UI Notes
+1. Home
+2. Search
+3. Game Detail
+4. Review
+5. Profile
+6. Shared Components
 
-### 박스 구성
+### 배치 규칙
 
-- 화면은 직사각형 카드
-- Coordinator는 상단에 둔 라우팅 박스
-- State는 화면 아래 작은 설명 박스
-- 공통 컴포넌트는 옆에 태그 형태로 배치
-
-### 화살표 규칙
-
-- 실선: 기본 화면 이동
-- 점선: 조건부 이동
-- 양방향 점선: 상태 갱신과 화면 재렌더링 관계
+- 왼쪽에서 오른쪽으로 `Home -> Search -> Game Detail -> Review`
+- `Profile`은 Home 또는 상단 탭 구조의 별도 가지로 배치
+- 공통 컴포넌트는 하단 또는 우측에 모아 표시
 
 ### 시각적 강조
 
-- 로그인 전/후 분기
-- Discovery에서 Detail로 이어지는 주 경로
-- 리뷰 작성처럼 인증이 필요한 액션
+- `Game Detail`을 중심 허브로 배치해 검색과 리뷰 흐름의 연결을 드러낸다.
+- `Review`와 `Favorite` 관련 액션은 인증 필요 표시를 함께 둔다.
+- 공통 상태 UI는 별도 영역에 묶어 디자인 시스템 재사용성을 보여준다.
